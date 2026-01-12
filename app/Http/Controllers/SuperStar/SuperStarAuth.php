@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Superstar;
+use App\Models\User;
 
 class SuperStarAuth extends Controller
 {
@@ -92,34 +93,42 @@ class SuperStarAuth extends Controller
         // Check if login field is email or username
         $loginType = filter_var($loginField, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
 
-        // Find superstar by email or username
-        $superstar = Superstar::where($loginType, $loginField)->first();
+        // Find user by email or username
+        $user = User::where($loginType, $loginField)->first();
 
-        if (!$superstar) {
+        if (!$user || $user->role !== 'superstar') {
             return response()->json([
                 'message' => 'Invalid credentials'
             ], 401);
         }
 
         // Check role - if admin, return error
-        if ($superstar->role === 'admin') {
+        if ($user->role === 'admin') {
             return response()->json([
                 'message' => 'Please use the admin app for admin access'
             ], 403);
         }
 
         // Verify password
-        if (!Hash::check($password, $superstar->password)) {
+        if (!Hash::check($password, $user->password)) {
             return response()->json([
                 'message' => 'Invalid credentials'
             ], 401);
         }
 
+        // Ensure superstar profile exists
+        $superstar = $user->superstar;
+        if (!$superstar) {
+            return response()->json([
+                'message' => 'Superstar profile not found'
+            ], 404);
+        }
+
         // Revoke existing tokens if any
-        $superstar->tokens()->delete();
+        $user->tokens()->delete();
 
         // Create new sanctum token
-        $token = $superstar->createToken('superstar-auth-token')->plainTextToken;
+        $token = $user->createToken('superstar-auth-token')->plainTextToken;
 
         return response()->json([
             'message' => 'Login successful',
@@ -133,10 +142,10 @@ class SuperStarAuth extends Controller
                 'rating' => $superstar->rating,
                 'total_followers' => $superstar->total_followers,
                 'status' => $superstar->status,
-                'username' => $superstar->username,
-                'email' => $superstar->email,
-                'role' => $superstar->role,
-                'created_at' => $superstar->created_at
+                'username' => $user->username,
+                'email' => $user->email,
+                'role' => $user->role,
+                'created_at' => $user->created_at
             ],
             'token' => $token,
             'token_type' => 'Bearer'
@@ -215,7 +224,14 @@ class SuperStarAuth extends Controller
      */
     public function me(Request $request)
     {
-        $superstar = $request->user();
+        $user = $request->user();
+        $superstar = $user->superstar;
+
+        if (!$superstar) {
+            return response()->json([
+                'message' => 'Superstar profile not found'
+            ], 404);
+        }
 
         return response()->json([
             'superstar' => [
@@ -228,11 +244,11 @@ class SuperStarAuth extends Controller
                 'rating' => $superstar->rating,
                 'total_followers' => $superstar->total_followers,
                 'status' => $superstar->status,
-                'username' => $superstar->username,
-                'email' => $superstar->email,
-                'role' => $superstar->role,
-                'created_at' => $superstar->created_at,
-                'updated_at' => $superstar->updated_at
+                'username' => $user->username,
+                'email' => $user->email,
+                'role' => $user->role,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at
             ]
         ]);
     }
@@ -276,8 +292,8 @@ class SuperStarAuth extends Controller
             'bio' => 'sometimes|string|max:1000',
             'price_per_hour' => 'sometimes|numeric|min:0|max:9999.99',
             'is_available' => 'sometimes|boolean',
-            'username' => 'sometimes|string|max:255|unique:superstars,username,' . $request->user()->id,
-            'email' => 'sometimes|email|max:255|unique:superstars,email,' . $request->user()->id,
+            'username' => 'sometimes|string|max:255|unique:users,username,' . $request->user()->id,
+            'email' => 'sometimes|email|max:255|unique:users,email,' . $request->user()->id,
         ]);
 
         if ($validator->fails()) {
@@ -287,31 +303,48 @@ class SuperStarAuth extends Controller
             ], 422);
         }
 
-        $superstar = $request->user();
+        $user = $request->user();
+        $superstar = $user->superstar;
+
+        if (!$superstar) {
+            return response()->json([
+                'message' => 'Superstar profile not found'
+            ], 404);
+        }
         
-        $updateData = [];
+        $userUpdateData = [];
+        $superstarUpdateData = [];
         
         // Only update fields that are provided
         if ($request->has('display_name')) {
-            $updateData['display_name'] = $request->display_name;
+            $superstarUpdateData['display_name'] = $request->display_name;
         }
         if ($request->has('bio')) {
-            $updateData['bio'] = $request->bio;
+            $superstarUpdateData['bio'] = $request->bio;
         }
         if ($request->has('price_per_hour')) {
-            $updateData['price_per_hour'] = $request->price_per_hour;
+            $superstarUpdateData['price_per_hour'] = $request->price_per_hour;
         }
         if ($request->has('is_available')) {
-            $updateData['is_available'] = $request->boolean('is_available');
+            $superstarUpdateData['is_available'] = $request->boolean('is_available');
         }
         if ($request->has('username')) {
-            $updateData['username'] = $request->username;
+            $userUpdateData['username'] = $request->username;
         }
         if ($request->has('email')) {
-            $updateData['email'] = $request->email;
+            $userUpdateData['email'] = $request->email;
         }
         
-        $superstar->update($updateData);
+        if (!empty($userUpdateData)) {
+            $user->update($userUpdateData);
+        }
+        if (!empty($superstarUpdateData)) {
+            $superstar->update($superstarUpdateData);
+        }
+        
+        // Refresh instances
+        $user->refresh();
+        $superstar->refresh();
         
         return response()->json([
             'message' => 'Profile updated successfully',
@@ -325,11 +358,11 @@ class SuperStarAuth extends Controller
                 'rating' => $superstar->rating,
                 'total_followers' => $superstar->total_followers,
                 'status' => $superstar->status,
-                'username' => $superstar->username,
-                'email' => $superstar->email,
-                'role' => $superstar->role,
-                'created_at' => $superstar->created_at,
-                'updated_at' => $superstar->updated_at
+                'username' => $user->username,
+                'email' => $user->email,
+                'role' => $user->role,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at
             ]
         ]);
     }
@@ -388,22 +421,22 @@ class SuperStarAuth extends Controller
             ], 422);
         }
 
-        $superstar = $request->user();
+        $user = $request->user();
         
         // Verify current password
-        if (!Hash::check($request->current_password, $superstar->password)) {
+        if (!Hash::check($request->current_password, $user->password)) {
             return response()->json([
                 'message' => 'Current password is incorrect'
             ], 422);
         }
         
         // Update password
-        $superstar->update([
+        $user->update([
             'password' => Hash::make($request->new_password)
         ]);
         
         // Revoke all existing tokens (force logout from all devices)
-        $superstar->tokens()->delete();
+        $user->tokens()->delete();
         
         return response()->json([
             'message' => 'Password changed successfully. Please login again.'
