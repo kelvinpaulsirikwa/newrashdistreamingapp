@@ -121,7 +121,34 @@ class UserApiLogin extends Controller
     }
 
     /**
-     * Get current authenticated user
+     * @OA\Get(
+     *     path="/api/user/me",
+     *     summary="Get authenticated user",
+     *     description="Get current authenticated user details",
+     *     tags={"User Authentication"},
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="User details retrieved successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="id", type="integer", example=1),
+     *                 @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+     *                 @OA\Property(property="username", type="string", example="johndoe"),
+     *                 @OA\Property(property="image", type="string", nullable=true, example="https://example.com/avatar.jpg")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Unauthorized")
+     *         )
+     *     )
+     * )
      */
     public function getAuthUser(Request $request)
     {
@@ -147,7 +174,29 @@ class UserApiLogin extends Controller
     }
 
     /**
-     * Logout - Revoke all tokens
+     * @OA\Post(
+     *     path="/api/user/logout",
+     *     summary="Logout user",
+     *     description="Logout user and revoke all Sanctum tokens",
+     *     tags={"User Authentication"},
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Logout successful",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Logged out successfully")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Unauthorized")
+     *         )
+     *     )
+     * )
      */
     public function logout(Request $request)
     {

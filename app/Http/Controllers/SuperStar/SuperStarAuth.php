@@ -265,10 +265,9 @@ class SuperStarAuth extends Controller
      *         @OA\JsonContent(
      *             @OA\Property(property="display_name", type="string", example="John Doe"),
      *             @OA\Property(property="bio", type="string", example="Professional superstar"),
-     *             @OA\Property(property="price_per_hour", type="number", format="float", example=50.00),
      *             @OA\Property(property="is_available", type="boolean", example=true),
      *             @OA\Property(property="username", type="string", example="johndoe"),
-     *             @OA\Property(property="email", type="string", format="email", example="john@example.com")
+     *             @OA\Property(property="profile_image", type="string", format="binary", description="Profile image file (jpeg, png, jpg, gif, max 2MB)")
      *         )
      *     ),
      *     @OA\Response(
@@ -285,87 +284,68 @@ class SuperStarAuth extends Controller
      *     )
      * )
      */
-    public function updateProfile(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'display_name' => 'sometimes|string|max:255',
-            'bio' => 'sometimes|string|max:1000',
-            'price_per_hour' => 'sometimes|numeric|min:0|max:9999.99',
-            'is_available' => 'sometimes|boolean',
-            'username' => 'sometimes|string|max:255|unique:users,username,' . $request->user()->id,
-            'email' => 'sometimes|email|max:255|unique:users,email,' . $request->user()->id,
-        ]);
+  public function updateProfile(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'display_name'  => 'sometimes|string|max:255',
+        'bio'           => 'sometimes|string|max:1000',
+        'is_available'  => 'sometimes|boolean',
+        'username'      => 'sometimes|string|max:255|unique:users,username,' . $request->user()->id,
+        'profile_image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $user = $request->user();
-        $superstar = $user->superstar;
-
-        if (!$superstar) {
-            return response()->json([
-                'message' => 'Superstar profile not found'
-            ], 404);
-        }
-        
-        $userUpdateData = [];
-        $superstarUpdateData = [];
-        
-        // Only update fields that are provided
-        if ($request->has('display_name')) {
-            $superstarUpdateData['display_name'] = $request->display_name;
-        }
-        if ($request->has('bio')) {
-            $superstarUpdateData['bio'] = $request->bio;
-        }
-        if ($request->has('price_per_hour')) {
-            $superstarUpdateData['price_per_hour'] = $request->price_per_hour;
-        }
-        if ($request->has('is_available')) {
-            $superstarUpdateData['is_available'] = $request->boolean('is_available');
-        }
-        if ($request->has('username')) {
-            $userUpdateData['username'] = $request->username;
-        }
-        if ($request->has('email')) {
-            $userUpdateData['email'] = $request->email;
-        }
-        
-        if (!empty($userUpdateData)) {
-            $user->update($userUpdateData);
-        }
-        if (!empty($superstarUpdateData)) {
-            $superstar->update($superstarUpdateData);
-        }
-        
-        // Refresh instances
-        $user->refresh();
-        $superstar->refresh();
-        
+    if ($validator->fails()) {
         return response()->json([
-            'message' => 'Profile updated successfully',
-            'superstar' => [
-                'id' => $superstar->id,
-                'user_id' => $superstar->user_id,
-                'display_name' => $superstar->display_name,
-                'bio' => $superstar->bio,
-                'price_per_hour' => $superstar->price_per_hour,
-                'is_available' => $superstar->is_available,
-                'rating' => $superstar->rating,
-                'total_followers' => $superstar->total_followers,
-                'status' => $superstar->status,
-                'username' => $user->username,
-                'email' => $user->email,
-                'role' => $user->role,
-                'created_at' => $user->created_at,
-                'updated_at' => $user->updated_at
-            ]
-        ]);
+            'message' => 'Validation failed',
+            'errors'  => $validator->errors(),
+        ], 422);
     }
+
+    $user = $request->user();
+    $superstar = $user->superstar;
+
+    if (!$superstar) {
+        return response()->json([
+            'message' => 'Superstar profile not found'
+        ], 404);
+    }
+
+    // Update superstar fields
+    $superstar->update($request->only([
+        'display_name',
+        'bio',
+        'is_available',
+    ]));
+
+    // Update user fields
+    if ($request->has('username')) {
+        $user->username = $request->username;
+    }
+
+    // Handle image upload
+    if ($request->hasFile('profile_image')) {
+        $image = $request->file('profile_image');
+        $imageName = uniqid() . '.' . $image->getClientOriginalExtension();
+        $image->move(public_path('images/superstars'), $imageName);
+
+        $user->profile_image = 'images/superstars/' . $imageName;
+    }
+
+    $user->save();
+
+    return response()->json([
+        'message' => 'Profile updated successfully',
+        'superstar' => [
+            'id' => $superstar->id,
+            'display_name' => $superstar->display_name,
+            'bio' => $superstar->bio,
+            'is_available' => $superstar->is_available,
+            'username' => $user->username,
+            'email' => $user->email,
+            'profile_image' => $user->profile_image,
+        ]
+    ]);
+}
 
     /**
      * @OA\Post(

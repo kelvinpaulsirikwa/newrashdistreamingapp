@@ -13,10 +13,10 @@ return new class extends Migration
     public function up(): void
     {
         // Ensure any NULL values are set to 0.00 before altering
-        DB::statement("UPDATE `superstars` SET `price_per_hour` = 0.00 WHERE `price_per_hour` IS NULL;");
+        DB::statement("UPDATE `superstars` SET `price_per_minute` = 0.00 WHERE `price_per_minute` IS NULL;");
 
         // Modify column to have a default of 0.00
-        DB::statement("ALTER TABLE `superstars` MODIFY `price_per_hour` DECIMAL(10,2) NOT NULL DEFAULT 0.00;");
+        DB::statement("ALTER TABLE `superstars` MODIFY `price_per_minute` DECIMAL(10,2) NOT NULL DEFAULT 0.00;");
     }
 
     /**
@@ -25,6 +25,6 @@ return new class extends Migration
     public function down(): void
     {
         // Revert to having no default (keep NOT NULL)
-        DB::statement("ALTER TABLE `superstars` MODIFY `price_per_hour` DECIMAL(10,2) NOT NULL;");
+        DB::statement("ALTER TABLE `superstars` MODIFY `price_per_minute` DECIMAL(10,2) NOT NULL;");
     }
 };

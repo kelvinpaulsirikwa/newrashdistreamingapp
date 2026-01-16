@@ -6,6 +6,7 @@ use App\Http\Controllers\SuperStar\SuperStarAuth;
 use App\Http\Controllers\SuperStar\SuperstarPostController;
 use App\Http\Controllers\SuperStar\ChatController;
 use App\Http\Controllers\SuperStar\PaymentController;
+use App\Http\Controllers\SuperStar\SuperstarStoryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,7 +30,8 @@ Route::prefix('superstar')->group(function () {
         // SuperStar profile routes
         Route::get('/me', [SuperStarAuth::class, 'me'])->name('api.superstar.me');
         Route::post('/logout', [SuperStarAuth::class, 'logout'])->name('api.superstar.logout');
-        Route::put('/profile', [SuperStarAuth::class, 'updateProfile'])->name('api.superstar.profile.update');
+Route::match(['PUT', 'POST'], '/profile', [SuperStarAuth::class, 'updateProfile'])
+    ->name('api.superstar.profile.update');
         Route::post('/change-password', [SuperStarAuth::class, 'changePassword'])->name('api.superstar.password.change');
 
         // SuperStar Posts CRUD routes
@@ -59,6 +61,17 @@ Route::prefix('superstar')->group(function () {
             Route::get('/user/{userId}', [PaymentController::class, 'getUserPaymentHistory'])->name('api.superstar.payments.user-history');
         });
 
+        // SuperStar Stories routes
+        Route::prefix('stories')->group(function () {
+            Route::get('/', [SuperstarStoryController::class, 'index'])->name('api.superstar.stories.index');
+            Route::post('/', [SuperstarStoryController::class, 'store'])->name('api.superstar.stories.store');
+            Route::get('/{id}', [SuperstarStoryController::class, 'show'])->name('api.superstar.stories.show');
+            Route::delete('/{id}', [SuperstarStoryController::class, 'destroy'])->name('api.superstar.stories.destroy');
+        });
+
     });
+
+    // Public routes (no authentication)
+    Route::get('/stories/file/{filename}', [SuperstarStoryController::class, 'getFile'])->name('api.superstar.stories.file');
 
 });

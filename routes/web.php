@@ -13,6 +13,24 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Public story file access
+Route::get('/stories/{filename}', function ($filename) {
+    $filePath = 'stories/' . $filename;
+    
+    if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($filePath)) {
+        abort(404);
+    }
+    
+    $file = \Illuminate\Support\Facades\Storage::disk('local')->get($filePath);
+    $fullPath = storage_path('app/' . $filePath);
+    $mimeType = \Illuminate\Support\Facades\File::mimeType($fullPath);
+    
+    return \Illuminate\Support\Facades\Response::make($file, 200, [
+        'Content-Type' => $mimeType,
+        'Content-Disposition' => 'inline; filename="' . $filename . '"'
+    ]);
+});
+
 // Provide a global named login route so the `auth` middleware can redirect to it
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 
